@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>color city palette</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- the big map behind everything -->
+  <svg id="map" class="mapbg" viewBox="0 0 1600 1000"
+       preserveAspectRatio="none"
+       xmlns="http://www.w3.org/2000/svg">
+
+    <!-- gradients go here -->
+    <defs id="mapdefs"></defs>
+
+    <!-- everything inside #world can be dragged around together -->
+    <g id="world" transform="translate(0,0)">
+      <g id="lines"></g>      <!-- the thick color lines -->
+      <g id="fronts"></g>     <!-- the moving "head" chunks -->
+      <g id="stations"></g>   <!-- transparent circles at line crossings -->
+      <g id="riders"></g>     <!-- the solid color circles that slide along each line -->
+    </g>
+
+    <!-- city name in the corner -->
+    <text id="cityLabel" class="cityLabel" x="40" y="70">—</text>
+
+    <!-- little hex tooltip that pops up when you click a line or circle -->
+    <g id="pin" class="pin" transform="translate(0,0)" style="opacity:0">
+      <line class="pin__stem" x1="0" y1="0" x2="0" y2="-40"/>
+      <rect class="pin__box" x="-54" y="-66" width="108" height="26" rx="2"/>
+      <text class="pin__hex" id="pinHex" x="0" y="-48" text-anchor="middle">#000000</text>
+    </g>
+  </svg>
+
+
+  <header class="top">
+    <span class="top__l">color city palette</span>
+  </header>
+
+  <!-- sticky palette bar — shows up after you load a city -->
+  <div id="stickyBar" class="stickybar" hidden>
+    <div class="stickybar__name" id="stickyName">—</div>
+    <div class="stickybar__swatches" id="stickySwatches"></div>
+
+    <!-- little controls so you can mess with the colors -->
+    <div class="stickybar__controls">
+      <label class="ctrl">
+        <span>vibrancy</span>
+        <input type="range" id="ctrlVib" min="-100" max="100" value="0" />
+      </label>
+      <label class="ctrl">
+        <span>hue</span>
+        <input type="range" id="ctrlHue" min="-180" max="180" value="0" />
+      </label>
+      <label class="ctrl">
+        <span>sat</span>
+        <input type="range" id="ctrlSat" min="-100" max="100" value="0" />
+      </label>
+      <button type="button" id="ctrlReset" class="ctrl__reset">refresh</button>
+
+      <!-- mini search input shown only after first search -->
+      <form id="form2" class="stickybar__search" autocomplete="off">
+        <input id="city2" name="city2" type="text"
+               placeholder="another city" spellcheck="false"
+               autocapitalize="off" autocomplete="off" />
+        <button type="submit">go</button>
+      </form>
+    </div>
+  </div>
+
+  <main class="main">
+
+    <!-- search for a city -->
+    <section class="concept">
+      <h1 class="headline">color → city</h1>
+      <p class="subline">
+        type a city. its palette becomes a subway-style map —
+        each color is a line. click a line or circle to copy a hex.
+      </p>
+
+      <form id="form" class="ask" autocomplete="off">
+        <input id="city" name="city" type="text"
+               placeholder="tokyo" spellcheck="false"
+               autocapitalize="off" autocomplete="off" />
+        <button type="submit" id="go">paint →</button>
+      </form>
+
+      <!-- quick-pick cities -->
+      <div class="chips" id="chips">
+        <button type="button" class="chip" data-c="tokyo">tokyo</button>
+        <button type="button" class="chip" data-c="lisbon">lisbon</button>
+        <button type="button" class="chip" data-c="reykjavik">reykjavík</button>
+        <button type="button" class="chip" data-c="marrakech">marrakech</button>
+        <button type="button" class="chip" data-c="havana">havana</button>
+        <button type="button" class="chip" data-c="seoul">seoul</button>
+        <button type="button" class="chip" data-c="oslo">oslo</button>
+        <button type="button" class="chip" data-c="new york">new york</button>
+      </div>
+
+      <div class="status" id="status" aria-live="polite"></div>
+    </section>
+
+    <!-- palette info + clickable swatches, shown after a search -->
+    <section class="stage" id="stage" hidden>
+      <div class="meta">
+        <span id="palText" class="meta__name">—</span>
+        <span id="palTags" class="meta__tags">—</span>
+      </div>
+      <div class="strip" id="strip"></div>
+      <div class="cap">click a line or circle on the map to copy its hex</div>
+    </section>
+
+  </main>
+
+  <footer class="foot"></footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,517 @@
+/* palette atlas  */
+
+:root{
+  --bg: #ffffff;
+  --ink: #0a0a0a;
+  --line: #111;
+  --c1:#e9e4d4; --c2:#c7b98a; --c3:#8b7a3f; --c4:#5d5a2b; --c5:#2a2a1b; /* fallback */
+  --pad: clamp(20px, 3vw, 36px);
+  --maxw: 1200px;
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --mono: "Space Mono", ui-monospace, Menlo, monospace;
+}
+
+*{ box-sizing: border-box }
+html,body{ margin:0; padding:0 }
+body{
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px; line-height: 1.45;
+  min-height: 100vh;
+  position: relative;
+  isolation: isolate;
+}
+::selection{ background: var(--ink); color: var(--bg); }
+
+/* top bar — removed entirely so the subway fills the whole page */
+.top{
+  display: none;
+}
+.top__r{ opacity: .55 }
+
+/* main — center the concept card in the viewport on the landing page */
+.main{
+  max-width: var(--maxw); margin: 0 auto; padding: var(--pad);
+  position: relative; z-index: 10;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* once searched, drop the centering so other content can flow normally */
+body.searched .main{
+  min-height: 0;
+  display: block;
+}
+.top{ position: relative; z-index: 10; background: var(--bg); }
+.foot{ position: relative; z-index: 10; background: var(--bg); }
+
+/* concept block — semi-transparent so the subway peeks through softly,
+   draggable on the landing page */
+.concept{
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(10, 10, 10, 0.7);
+  backdrop-filter: blur(3px);
+  padding: 18px;
+  cursor: grab;
+  user-select: none;
+}
+.concept.dragging{ cursor: grabbing; }
+/* dont try to drag when interacting with the input/buttons inside */
+.concept input, .concept button{ user-select: auto; }
+.stage{ background: var(--bg); padding: 14px; border: 1px solid var(--ink); }
+
+/* concept / headline */
+.concept{ display: grid; gap: 20px; max-width: 860px; }
+.headline,
+.headline *{
+  margin: 0;
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: clamp(48px, 8vw, 104px);
+  letter-spacing: -0.035em;
+  line-height: .95;
+}
+.subline{
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: .02em;
+  color: #444;
+  max-width: 58ch;
+}
+
+/* input */
+.ask{
+  display: grid;
+  grid-template-columns: 1fr auto;
+  border: 1px solid var(--ink);
+  max-width: 560px;
+  margin-top: 8px;
+}
+#city{
+  border: 0; outline: 0; background: transparent;
+  padding: 14px 16px;
+  font-family: var(--sans);
+  font-size: 18px;
+  color: var(--ink);
+  text-transform: lowercase;
+}
+#city::placeholder{ color: #999; }
+#go{
+  border: 0; border-left: 1px solid var(--ink);
+  background: var(--ink); color: var(--bg);
+  padding: 0 22px;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+  cursor: pointer;
+}
+#go:hover{ background: #222 }
+
+/* chips */
+.chips{ display: flex; flex-wrap: wrap; gap: 6px; }
+.chip{
+  appearance: none; cursor: pointer;
+  background: transparent; color: var(--ink);
+  border: 1px solid var(--ink);
+  padding: 5px 10px;
+  font-family: var(--mono); font-size: 11px;
+  text-transform: lowercase;
+}
+.chip:hover{ background: var(--ink); color: var(--bg); }
+
+.status{
+  font-family: var(--mono); font-size: 12px; color: #444; min-height: 1.3em;
+}
+.status .loading::after{ content: "▮"; margin-left: 6px; animation: blink 1s infinite steps(2,end); }
+@keyframes blink{ 50%{ opacity: 0 } }
+
+/* stage */
+.stage{ margin-top: 48px; display: grid; gap: 18px; }
+.stage[hidden]{ display: none; }
+
+/* map figure */
+.figure{ margin: 0; display: grid; gap: 10px; }
+/* full-viewport city-map — fills the entire screen, doesnt move */
+.mapbg{
+  position: fixed; inset: 0;
+  width: 100vw; height: 100vh;
+  z-index: 0;                   /* above body bg, below concept/stage UI */
+  background: transparent;
+  border: 0;
+  overflow: hidden;
+  pointer-events: none;         /* dont catch any drag/click on empty space */
+  touch-action: none;
+}
+/* but lines/dots themselves stay clickable when interactive */
+.mapbg .line, .mapbg .rider, .mapbg .station{
+  pointer-events: auto;
+}
+/* (the map shows on the landing page too — busy decorative subway) */
+.mapbg .rider{ pointer-events: auto; }
+.cityLabel{ pointer-events: none; }
+
+/* hide the city label on the landing page (only show it after a search) */
+body:not(.searched) .cityLabel{ display: none; }
+
+/* landing-page lines/dots are purely decorative — no clicks, no copy */
+.landing-line{
+  pointer-events: none !important;
+  cursor: default !important;
+}
+
+/* transit lines — Vignelli subway-style: flat caps, miter joins, clean geometry */
+.line{
+  fill: none;
+  stroke-width: 22;
+  stroke-linecap: butt;      /* Vignelli: flat line ends at viewport edges */
+  stroke-linejoin: miter;    /* sharp corners */
+  stroke-miterlimit: 6;
+  cursor: pointer;
+  filter: saturate(1.35);
+  transition: stroke-width .2s ease, opacity .2s ease;
+}
+.line:hover{ stroke-width: 28; }
+.mapbg:has(.line:hover) .line:not(:hover){ opacity: .25; }
+
+/* circles — transparent fill, thin black border, like the reference */
+.station{
+  fill: transparent;
+  stroke: #111;
+  stroke-width: 1.25;
+  cursor: pointer;
+  transition: r .15s ease, stroke-width .15s ease;
+}
+.station:hover{ stroke-width: 2; }
+
+/* the "front" — a short bright head that travels along each line */
+.front{
+  fill: none;
+  stroke-width: 30;               
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
+  stroke-miterlimit: 6;
+  pointer-events: none;
+  opacity: .95;
+  mix-blend-mode: multiply;
+}
+
+/* the moving rider circle — solid color, thin black ring */
+.rider{
+  stroke: #111;
+  stroke-width: 1.25;
+  cursor: pointer;
+  filter: saturate(1.4);
+  transition: r .15s ease;
+}
+.rider:hover{ r: 22; }
+.rider.paused{ stroke-width: 2; }
+
+/* hex label that appears next to a paused rider */
+.riderLabel{
+  font-family: var(--mono);
+  font-size: 18px;
+  letter-spacing: .04em;
+  fill: #111;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 4;
+  pointer-events: none;
+}
+
+/* bottom hex bar — inside the svg so it sits on the full-screen map */
+.hexblock{ cursor: pointer; }
+.hexblock rect{ transition: y .15s ease; }
+.hexblock:hover rect{ y: 928; }  /* small nudge up on hover */
+.hexblock text{
+  font-family: var(--mono);
+  font-size: 20px;
+  letter-spacing: .06em;
+  pointer-events: none;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+.hexblock .flash{
+  opacity: 0;
+  transition: opacity .2s;
+}
+.hexblock.copied .flash{ opacity: 1; }
+
+/* city label on map */
+.cityLabel{
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 84px;
+  letter-spacing: -0.04em;
+  fill: var(--ink);
+  text-transform: lowercase;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 4;
+}
+
+/* pin */
+.pin{ pointer-events: none; transition: opacity .2s; }
+.pin__stem{ stroke: var(--ink); stroke-width: 1.5; }
+.pin__box{ fill: var(--bg); stroke: var(--ink); stroke-width: 1; }
+.pin__hex{
+  font-family: var(--mono); font-size: 12px; fill: var(--ink);
+  letter-spacing: .06em;
+}
+
+/* caption */
+.cap{
+  font-family: var(--mono); font-size: 11px; letter-spacing: .08em;
+  color: #444; text-transform: uppercase;
+}
+
+/* strip of 5 swatches */
+.strip{
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+  border: 1px solid var(--ink);
+}
+.swatch{
+  position: relative;
+  aspect-ratio: 3 / 1;
+  cursor: copy;
+}
+.swatch__hex{
+  position: absolute; left: 10px; bottom: 8px;
+  font-family: var(--mono); font-size: 11px;
+  background: var(--bg); color: var(--ink);
+  padding: 2px 6px;
+  letter-spacing: .04em;
+}
+
+/* meta */
+.meta{
+  display: flex; justify-content: space-between; gap: 20px;
+  font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
+  text-transform: uppercase; color: #444;
+  border-top: 1px solid var(--ink);
+  padding-top: 10px;
+}
+.meta__name{ color: var(--ink); font-weight: 700; }
+.meta__tags{ font-style: italic; text-transform: lowercase; }
+
+/* footer — empty on landing page, hide so it doesnt leave a white band */
+.foot{
+  display: none;
+}
+
+@media (max-width: 640px){
+  .ask{ grid-template-columns: 1fr; }
+  #go{ border-left: 0; border-top: 1px solid var(--ink); padding: 12px; }
+  .strip{ grid-template-columns: repeat(5, 1fr); }
+}
+
+/* ============================================ */
+/* sticky palette bar at the top of the page    */
+/* ============================================ */
+.stickybar{
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 50;
+  background: var(--bg);
+  border-bottom: 1px solid var(--ink);
+  padding: 10px var(--pad);
+  display: grid;
+  gap: 8px;
+}
+.stickybar[hidden]{ display: none; }
+
+.stickybar__name{
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* row of color blocks */
+.stickybar__swatches{
+  display: flex;
+  gap: 2px;
+  border: 1px solid var(--ink);
+  height: 36px;
+}
+.stickybar__sw{
+  flex: 1;
+  position: relative;
+  cursor: copy;
+  transition: flex .15s ease;
+}
+/* hover plus sign */
+.stickybar__sw::after{
+  content: "+";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 22px;
+  color: #fff;
+  text-shadow: 0 0 3px rgba(0,0,0,.6);
+  opacity: 0;
+  transition: opacity .15s ease;
+  pointer-events: none;
+}
+.stickybar__sw:hover::after{ opacity: 1; }
+
+/* tiny "copied!" flash on the swatch */
+.stickybar__sw.copied::before{
+  content: "copied";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  background: var(--bg);
+  color: var(--ink);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+/* controls — draggable side card */
+.stickybar__controls{
+  position: fixed;
+  top: 200px;
+  left: auto;
+  right: 16px;
+  z-index: 60;
+
+  display: none;                 /* only visible after a search */
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+
+  background: var(--bg);
+  border: 1px solid var(--ink);
+  padding: 22px 12px 14px;
+
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #444;
+
+  cursor: grab;                  /* whole card grabs (drag from any non-input area) */
+  user-select: none;
+}
+.stickybar__controls.dragging{ cursor: grabbing; }
+body.searched .stickybar__controls{ display: flex; }
+
+/* tiny "drag me" handle dots at the top of the card */
+.stickybar__controls::before{
+  content: "···";
+  position: absolute;
+  top: 4px; left: 0; right: 0;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 14px;
+  letter-spacing: .2em;
+  color: #999;
+  pointer-events: none;
+}
+
+.ctrl{
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.ctrl input[type="range"]{
+  width: 110px;
+  accent-color: var(--ink);
+}
+.ctrl__reset{
+  appearance: none;
+  cursor: pointer;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  padding: 4px 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.ctrl__reset:hover{ background: var(--ink); color: var(--bg); }
+
+/* push the rest of the page down a bit when the sticky bar is shown */
+body.has-sticky .top{ padding-top: 110px; }
+
+/* paused rider — make it pop */
+.rider.paused{
+  stroke-width: 3;
+  r: 22;
+}
+
+/* hex code label on each sticky bar swatch */
+.stickybar__sw .sw-hex{
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  background: var(--bg);
+  color: var(--ink);
+  padding: 2px 6px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+/* hide the hex when hovering so the + sign reads cleanly */
+.stickybar__sw:hover .sw-hex{ opacity: 0; }
+
+/* ============================================ */
+/* AFTER A CITY IS LOADED — clean view          */
+/* ============================================ */
+
+/* once search has happened, hide the big concept block, footer, etc.
+   only the subway + sticky bar should be visible. */
+body.searched .concept{ display: none; }
+body.searched .stage{ display: none !important; }
+body.searched .foot{ display: none; }
+body.searched .top{ display: none; }
+body.searched .main{ padding: 0; }
+
+/* tiny search input lives inside the sticky bar */
+.stickybar__search{
+  display: none;          /* hidden until a search happens */
+  align-items: center;
+  gap: 6px;
+}
+body.searched .stickybar__search{ display: flex; }
+
+.stickybar__search input{
+  border: 1px solid var(--ink);
+  background: transparent;
+  padding: 4px 8px;
+  font-family: var(--sans);
+  font-size: 12px;
+  text-transform: lowercase;
+  width: 140px;
+  outline: 0;
+  color: var(--ink);
+}
+.stickybar__search button{
+  appearance: none;
+  cursor: pointer;
+  background: var(--ink);
+  color: var(--bg);
+  border: 0;
+  padding: 5px 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}

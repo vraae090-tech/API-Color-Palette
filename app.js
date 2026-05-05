@@ -487,8 +487,8 @@ function drawMap(colors) {
   ridersLayer.innerHTML   = "";
   defsEl.innerHTML        = "";
 
-  // small perpendicular offsets so nearby routes read as parallel "bundles"
-  const OFFSETS = [0, 26, -26, 52, -52, 78, -78, 104, -104, 130];
+  // same exact route offsets as the landing page, no city-specific variation
+  const OFFSETS = [0, 20, -20, 40, -40, 60, -60, 80];
 
   const lines = []; // i'll stash each line's animation info here
 
@@ -511,8 +511,6 @@ function drawMap(colors) {
       stroke: "url(#g_" + i + ")",
       class: "line",
     });
-    path.dataset.hex = color;
-    path.addEventListener("click", (event) => showPin(event, color));
     linesLayer.appendChild(path);
 
     // the "front" — a short thicker chunk that slides along the line
@@ -533,8 +531,6 @@ function drawMap(colors) {
       class: "rider",
       fill: color,
     });
-    rider.dataset.hex = color;
-    rider.addEventListener("click", (event) => showPin(event, color));
     ridersLayer.appendChild(rider);
 
     const routeDuration = mtaRouteDurations[i % mtaRouteDurations.length];
@@ -681,8 +677,6 @@ function addStation([x, y], color) {
     cx: x, cy: y, r: 14,
     class: "station",
   });
-  circle.dataset.hex = color;
-  circle.addEventListener("click", (event) => showPin(event, color));
   stationsLayer.appendChild(circle);
 }
 

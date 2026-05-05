@@ -143,12 +143,12 @@ body.searched .main{
   pointer-events: none;         /* dont catch any drag/click on empty space */
   touch-action: none;
 }
-/* but lines/dots themselves stay clickable when interactive */
+/* but lines/dots themselves are decorative and non-interactive */
 .mapbg .line, .mapbg .rider, .mapbg .station{
-  pointer-events: auto;
+  pointer-events: none;
 }
 /* (the map shows on the landing page too — busy decorative subway) */
-.mapbg .rider{ pointer-events: auto; }
+.mapbg .rider{ pointer-events: none; }
 .cityLabel{ pointer-events: none; }
 
 /* hide the city label on the landing page (only show it after a search) */
@@ -167,22 +167,20 @@ body:not(.searched) .cityLabel{ display: none; }
   stroke-linecap: butt;      /* Vignelli: flat line ends at viewport edges */
   stroke-linejoin: miter;    /* sharp corners */
   stroke-miterlimit: 6;
-  cursor: pointer;
+  cursor: default;
   filter: saturate(1.35);
   transition: stroke-width .2s ease, opacity .2s ease;
 }
-.line:hover{ stroke-width: 28; }
-.mapbg:has(.line:hover) .line:not(:hover){ opacity: .25; }
 
 /* circles — transparent fill, thin black border, like the reference */
 .station{
   fill: transparent;
   stroke: #111;
-  stroke-width: 1.25;
-  cursor: pointer;
+  stroke-width: 0.75;
+  cursor: default;
   transition: r .15s ease, stroke-width .15s ease;
 }
-.station:hover{ stroke-width: 2; }
+
 
 /* the "front" — a short bright head that travels along each line */
 .front{
@@ -199,8 +197,8 @@ body:not(.searched) .cityLabel{ display: none; }
 /* the moving rider circle — solid color, thin black ring */
 .rider{
   stroke: #111;
-  stroke-width: 1.25;
-  cursor: pointer;
+  stroke-width: 0.75;
+  cursor: default;
   filter: saturate(1.4);
   transition: r .15s ease;
 }

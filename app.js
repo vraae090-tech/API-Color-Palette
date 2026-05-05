@@ -39,7 +39,7 @@ const ctrlSat        = $("#ctrlSat");
 const ctrlReset      = $("#ctrlReset");
 
 // remember the original colors so the refresh button works
-let baseColors = [];      // straight from the api (boosted once)
+let baseColors = [];      // straight from the api 
 let displayColors = [];   // what's currently shown after slider tweaks
 
 // remember which palette ids have been shown for each city so we
@@ -103,7 +103,7 @@ function shuffleSeeded(arr, rand){
 }
 
 // nudge each route's points around a little bit. keeps the same
-// vignelli look (still 45° / horizontal / vertical-ish) but moves it.
+// still 45° 
 function jitterRoutes(routes, rand){
   return routes.map((points) => {
     // shift the whole route by a random amount

@@ -6,6 +6,15 @@ const API_URL = (q) =>
 const PROXY_URL = (url) =>
   "https://api.codetabs.com/v1/proxy/?quest=" + encodeURIComponent(url);
 
+const MTA_API_KEY = ""; // add your MTA API key here
+const MTA_GTFS_URL =
+  "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm";
+const MTA_GTFS_PROXY_URL = (url) =>
+  "https://api.codetabs.com/v1/proxy/?quest=" + encodeURIComponent(url);
+
+let mtaRouteDurations = []; // average route trip durations in seconds
+let mtaScheduleLoaded = false;
+
 
 // -------- grab elements --------
 const $ = (sel) => document.querySelector(sel);
@@ -21,6 +30,7 @@ const paletteTags = $("#palTags");
 const cityLabel   = $("#cityLabel");
 const pin         = $("#pin");
 const pinHex      = $("#pinHex");
+const mapEl       = $("#map");
 
 // svg layer groups
 const linesLayer    = $("#lines");
@@ -28,6 +38,22 @@ const frontsLayer   = $("#fronts");
 const stationsLayer = $("#stations");
 const ridersLayer   = $("#riders");
 const defsEl        = $("#mapdefs");
+
+// clickable pin toggle while paused
+if (pin) {
+  pin.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (paused) unpauseMap();
+  });
+}
+
+if (mapEl) {
+  mapEl.addEventListener("click", (event) => {
+    if (!paused) return;
+    if (event.target.closest(".line, .rider, .station, .pin")) return;
+    unpauseMap();
+  });
+}
 
 // sticky bar bits
 const stickyBar      = $("#stickyBar");
@@ -166,6 +192,117 @@ async function fetchPalettes(city) {
   return await response.json();
 }
 
+async function loadMtaSchedule() {
+  if (typeof JSZip === "undefined") {
+    console.warn("JSZip is not loaded; MTA schedule support is disabled.");
+    return;
+  }
+
+  try {
+    const headers = MTA_API_KEY ? { "x-api-key": MTA_API_KEY } : {};
+    let response = await fetch(MTA_GTFS_URL, { headers });
+    if (!response.ok) {
+      response = await fetch(MTA_GTFS_PROXY_URL(MTA_GTFS_URL));
+    }
+    if (!response.ok) {
+      throw new Error("MTA GTFS fetch failed: " + response.status);
+    }
+
+    const buffer = await response.arrayBuffer();
+    const zip = await JSZip.loadAsync(buffer);
+    const stopTimesFile = await findZipText(zip, /stop_times\.txt$/i);
+    const tripsFile = await findZipText(zip, /trips\.txt$/i);
+    if (!stopTimesFile || !tripsFile) {
+      throw new Error("MTA GTFS missing stop_times.txt or trips.txt");
+    }
+
+    const stopTimes = parseCsv(stopTimesFile);
+    const trips = parseCsv(tripsFile);
+    const tripsById = new Map(trips.map((row) => [row.trip_id, row]));
+    const tripStops = new Map();
+
+    for (const row of stopTimes) {
+      if (!row.trip_id) continue;
+      const list = tripStops.get(row.trip_id) || [];
+      list.push(row);
+      tripStops.set(row.trip_id, list);
+    }
+
+    const durationsByRoute = new Map();
+    for (const [tripId, stops] of tripStops.entries()) {
+      if (stops.length < 2) continue;
+      stops.sort((a, b) => Number(a.stop_sequence) - Number(b.stop_sequence));
+      const first = gtfsTimeToSeconds(stops[0].departure_time || stops[0].arrival_time);
+      const last = gtfsTimeToSeconds(stops[stops.length - 1].arrival_time || stops[stops.length - 1].departure_time);
+      if (first === null || last === null) continue;
+      let duration = last - first;
+      if (duration < 0) duration += 24 * 3600;
+      if (duration < 300 || duration > 5 * 3600) continue;
+      const routeId = tripsById.get(tripId)?.route_id;
+      if (!routeId) continue;
+      const list = durationsByRoute.get(routeId) || [];
+      list.push(duration);
+      durationsByRoute.set(routeId, list);
+    }
+
+    const averages = Array.from(durationsByRoute.entries())
+      .map(([routeId, durations]) => ({
+        routeId,
+        avgDuration:
+          durations.reduce((sum, value) => sum + value, 0) / durations.length,
+      }))
+      .sort((a, b) => a.avgDuration - b.avgDuration);
+
+    if (averages.length > 0) {
+      mtaRouteDurations = averages.map((item) => item.avgDuration);
+      mtaScheduleLoaded = true;
+      console.log("MTA route durations loaded:", averages.slice(0, 8));
+    }
+  } catch (err) {
+    console.warn("MTA schedule load failed:", err);
+    mtaScheduleLoaded = false;
+  }
+}
+
+function findZipText(zip, matcher) {
+  const file = zip.file(matcher)[0];
+  return file ? file.async("string") : null;
+}
+
+function parseCsv(text) {
+  const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  if (lines.length === 0) return [];
+  const headers = lines[0].split(",");
+  return lines.slice(1).map((line) => {
+    const values = line.split(",");
+    const row = {};
+    for (let i = 0; i < headers.length; i++) {
+      row[headers[i]] = values[i] || "";
+    }
+    return row;
+  });
+}
+
+function gtfsTimeToSeconds(time) {
+  if (!time || typeof time !== "string") return null;
+  const parts = time.split(":");
+  if (parts.length < 3) return null;
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+  const s = Number(parts[2]);
+  if (Number.isNaN(h) || Number.isNaN(m) || Number.isNaN(s)) return null;
+  return h * 3600 + m * 60 + s;
+}
+
+function makeScheduleSpeed(totalLength, avgDuration) {
+  return Math.max(35, Math.min(140, (totalLength * 120) / avgDuration));
+}
+
+function makeScheduleStartOffset(avgDuration, totalLength) {
+  const phase = (performance.now() / 1000) % avgDuration;
+  return (phase / avgDuration) * totalLength;
+}
+
 
 // the main function that runs when you submit a city
 async function loadCity(city) {
@@ -239,8 +376,8 @@ function showStatus(message, loading = false) {
 
 // 
 
-// the active routes for the current city (re-randomized per city)
-let activeRoutes = ROUTES;
+// the active routes for the current city (fixed landing layout)
+let activeRoutes = [];
 
 function paint(city, palette) {
   // grab up to 7 colors from the palette (pad if fewer)
@@ -251,7 +388,7 @@ function paint(city, palette) {
   const vibrant = colors.map((c) => boostColor(c, 0.22));
 
   // make sure we have enough colors to fill every route
-  while (vibrant.length < ROUTES.length) {
+  while (vibrant.length < LANDING_ROUTES.length) {
     vibrant.push(vibrant[vibrant.length % colors.length]);
   }
 
@@ -268,12 +405,8 @@ function paint(city, palette) {
   // city name in the corner of the map
   cityLabel.textContent = city.toLowerCase();
 
-  // randomize the subway layout based on the city name. same city
-  // always gives the same map (so it doesnt feel chaotic).
-  const seed = seedFromCity(city.toLowerCase());
-  const rand = makeRandom(seed);
-  const shuffled = shuffleSeeded(ROUTES, rand);
-  activeRoutes = jitterRoutes(shuffled, rand);
+  // use the same landing-page subway layout for every palette load
+  activeRoutes = LANDING_ROUTES;
 
   // build the moving subway-style map
   drawMap(vibrant);
@@ -355,7 +488,7 @@ function drawMap(colors) {
   defsEl.innerHTML        = "";
 
   // small perpendicular offsets so nearby routes read as parallel "bundles"
-  const OFFSETS = [0, 26, -26, 52, -52, 78, -78];
+  const OFFSETS = [0, 26, -26, 52, -52, 78, -78, 104, -104, 130];
 
   const lines = []; // i'll stash each line's animation info here
 
@@ -404,14 +537,21 @@ function drawMap(colors) {
     rider.addEventListener("click", (event) => showPin(event, color));
     ridersLayer.appendChild(rider);
 
+    const routeDuration = mtaRouteDurations[i % mtaRouteDurations.length];
+    const scheduleSpeed = routeDuration
+      ? makeScheduleSpeed(totalLength, routeDuration)
+      : 60 + Math.random() * 90;
+
     lines.push({
       path: path,
       front: front,
       rider: rider,
       totalLength: totalLength,
       chunkLength: chunkLength,
-      riderSpeed: 60 + Math.random() * 90,   // pixels per second
-      frontOffset: Math.random() * totalLength,
+      riderSpeed: scheduleSpeed,
+      frontOffset: routeDuration
+        ? makeScheduleStartOffset(routeDuration, totalLength)
+        : Math.random() * totalLength,
       gradientStops: gradient.stops,
       stopDefs: gradient.stopDefs,
       phase: Math.random() * Math.PI * 2,
@@ -1026,6 +1166,7 @@ function drawLandingMap(){
 
 // kick it off on page load
 drawLandingMap();
+loadMtaSchedule();
 
 
 
